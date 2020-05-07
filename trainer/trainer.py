@@ -49,12 +49,12 @@ class Trainer:
         elif opt == 'sgd':
             parameters = self.model.parameters()
             if hasattr(self.model, "adaptation_block"):
-                parameters = [{ "params": self.model.features.parameters(), "lr": 0.1 * opt_kwargs["lr"] },
-                              { "params": self.model.class_classifier[:-1].parameters(), "lr": 0.1 * opt_kwargs["lr"] },
-                              { "params": self.model.class_classifier[-1].parameters() },
-                              { "params": self.model.domain_classifier.parameters() },
-                              { "params": self.model.adaptation_block.parameters() },
-                ]
+                parameters = [{"params": self.model.features.parameters(), "lr": 0.1 * opt_kwargs["lr"]},
+                              {"params": self.model.class_classifier[:-1].parameters(), "lr": 0.1 * opt_kwargs["lr"]},
+                              {"params": self.model.class_classifier[-1].parameters()},
+                              {"params": self.model.domain_classifier.parameters()},
+                              {"params": self.model.adaptation_block.parameters()},
+                              ]
             opt = torch.optim.SGD(parameters, **opt_kwargs)
         else:
             raise NotImplementedError
@@ -63,12 +63,13 @@ class Trainer:
             src_val_data, trg_val_data = validation_data
 
         for self.epoch in range(self.epoch, n_epochs):
+            print(f"Starting epoch {self.epoch}/{n_epochs}")
             self.loss_logger.reset_history()
+            print(f"Starting training")
             for step, (src_batch, trg_batch) in enumerate(zip(src_data, trg_data)):
                 if step == steps_per_epoch:
                     break
                 self.train_on_batch(src_batch, trg_batch, opt)
-            
             # validation
             src_metrics = None
             trg_metrics = None
@@ -76,13 +77,15 @@ class Trainer:
                 self.model.eval()
 
                 # calculating metrics on validation
+                print(f"Starting metrics calculation")
                 if metrics is not None:
                     if src_val_data is not None:
                         src_metrics = self.score(src_val_data, metrics)
                     if trg_val_data is not None:
                         trg_metrics = self.score(trg_val_data, metrics)
-                
+
                 # calculating loss on validation
+                print(f"Starting loss on validation calculation")
                 if src_val_data is not None and trg_val_data is not None:
                     for val_step, (src_batch, trg_batch) in enumerate(zip(src_val_data, trg_val_data)):
                         loss, loss_info = self.calc_loss(src_batch, trg_batch)
