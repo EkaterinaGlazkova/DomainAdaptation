@@ -3,6 +3,7 @@ import torch.nn as nn
 
 import configs.dann_config as dann_config
 import models.backbone_models as backbone_models
+import models.domain_heads as domain_heads
 import models.blocks as blocks
 
 
@@ -16,16 +17,21 @@ class DANNModel(BaseModel):
     def __init__(self):
         super(DANNModel, self).__init__()
         self.features, self.pooling, self.class_classifier, \
-            pooling_ftrs, pooling_output_side = backbone_models.get_backbone_model()
+            domain_input_len, self.classifier_before_domain_cnt = backbone_models.get_backbone_model()
         
-        self.domain_classifier = nn.Sequential(
-            nn.Linear(pooling_ftrs * pooling_output_side * pooling_output_side, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Linear(128, 1),
-        )
+        if dann_config.NEED_ADAPTATION_BLOCK:
+            self.adaptation_block = nn.Sequential(
+                nn.ReLU(),
+                nn.Linear(domain_input_len, 2048),
+                nn.ReLU(inplace=True),
+            )
+            domain_input_len = 2048
+            classifier_start_output_len = self.class_classifier[self.classifier_before_domain_cnt][-1].out_features
+            self.class_classifier[self.classifier_before_domain_cnt][-1] = nn.Linear(2048, classifier_start_output_len)
 
-    def forward(self, input_data):
+        self.domain_classifier = domain_heads.get_domain_head(domain_input_len)
+
+    def forward(self, input_data, rev_grad_alpha=dann_config.GRADIENT_REVERSAL_LAYER_ALPHA):
         """
         Args:
             input_data (torch.tensor) - batch of input images
@@ -38,11 +44,19 @@ class DANNModel(BaseModel):
 
         output_classifier = features
         classifier_layers_outputs = []
-        for block in self.class_classifier:
-            output_classifier = block(output_classifier)
+        for i in range(self.classifier_before_domain_cnt):
+            output_classifier = self.class_classifier[i](output_classifier)
             classifier_layers_outputs.append(output_classifier)
 
-        reversed_features = blocks.GradientReversalLayer.apply(features, dann_config.GRADIENT_REVERSAL_LAYER_ALPHA)
+        if dann_config.NEED_ADAPTATION_BLOCK:
+            output_classifier = self.adaptation_block(output_classifier)
+
+        reversed_features = blocks.GradientReversalLayer.apply(output_classifier, rev_grad_alpha)
+
+        for i in range(self.classifier_before_domain_cnt, len(self.class_classifier)):
+            output_classifier = self.class_classifier[i](output_classifier)
+            classifier_layers_outputs.append(output_classifier)
+        
         output_domain = self.domain_classifier(reversed_features)
 
         output = {
@@ -65,3 +79,42 @@ class DANNModel(BaseModel):
         target task.
         """
         return self.forward(input_data)["class"]
+
+
+class OneDomainModel(BaseModel):
+    def __init__(self):
+        super(OneDomainModel, self).__init__()
+        self.features, self.pooling, self.class_classifier, *_ = backbone_models.get_backbone_model()
+
+    def forward(self, input_data):
+        """
+        Args:
+            input_data (torch.tensor) - batch of input images
+        Return:
+            output (map of tensors) - map with model output tensors
+        """
+        features = self.features(input_data)
+        features = self.pooling(features)
+        features = torch.flatten(features, 1)
+        
+        output_classifier = features
+        for block in self.class_classifier:
+            output_classifier = block(output_classifier)
+
+        output = {
+            "class": output_classifier,
+        }
+        
+        return output
+
+    def predict(self, input_data):
+        """
+        Args:
+            input_data (torch.tensor) - batch of input images
+        Return:
+            output (tensor) - model predictions
+
+        Function for testing process when need to solve only
+        target task.
+        """
+        return self.forward(input_data)["class"]     
