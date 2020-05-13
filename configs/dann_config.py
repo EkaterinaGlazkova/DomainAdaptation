@@ -2,6 +2,7 @@ LOSS_GAMMA = 10  # from authors, not optimized
 LOSS_NEED_INTERMEDIATE_LAYERS = False
 UNK_VALUE = -100  # torch default
 IS_UNSUPERVISED = True
+LOG_PATH = "_log/exp4"
 
 GRADIENT_REVERSAL_LAYER_ALPHA = 1.0
 FREZE_BACKBONE_FEATURES = True
@@ -18,14 +19,16 @@ SAVE_MODEL_FREQ = 199
 
 CLASSES_CNT = 31
 MODEL_BACKBONE = "alexnet" # alexnet resnet50 vanilla_dann
-DOMAIN_HEAD = "vanilla_dann"
+DOMAIN_HEAD = "vanilla_dann" # "vanilla_dann", "dropout_dann", "mnist_dann"
 BACKBONE_PRETRAINED = True
-NEED_ADAPTATION_BLOCK = True # ="True" only for alexnet, ="False" for other types
+ALEXNET_NEED_ADAPTATION_BLOCK = True # ="True" only for alexnet, ="False" for other types
+ALEXNET_USE_DROPOUT_IN_CLASS_HEAD_AFTER_ADAPTATION_BLOCK = True # used only if NEED_ADAPTATION_BLOCK == True
 BLOCKS_WITH_SMALLER_LR = 2 # ="2" only for alexnet, ="0" for other types
 IMAGE_SIZE = 224
 DATASET = "office-31"
 SOURCE_DOMAIN = "amazon"
 TARGET_DOMAIN = "webcam"
+RESNET50_USE_DROPOUT_IN_CLASS_HEAD = True
 
 # CLASSES_CNT = 10
 # MODEL_BACKBONE = "mnist_dann"

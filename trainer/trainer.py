@@ -80,17 +80,18 @@ class Trainer:
                 print(f"Starting metrics calculation")
                 if metrics is not None:
                     if src_val_data is not None:
-                        src_metrics = self.score(src_val_data, metrics)
+                        src_metrics = self.score(src_val_data, metrics, len(src_val_data))
                     if trg_val_data is not None:
-                        trg_metrics = self.score(trg_val_data, metrics)
+                        trg_metrics = self.score(trg_val_data, metrics, len(trg_val_data))
 
                 # calculating loss on validation
-                print(f"Starting loss on validation calculation")
-                if src_val_data is not None and trg_val_data is not None:
-                    for val_step, (src_batch, trg_batch) in enumerate(zip(src_val_data, trg_val_data)):
-                        loss, loss_info = self.calc_loss(src_batch, trg_batch)
-                        self.loss_logger.store(prefix="val", loss=loss.data.cpu().item(), **loss_info)
-
+                #commented - not working with training on ALL source and target data
+                #print(f"Starting loss on validation calculation")
+                #if src_val_data is not None and trg_val_data is not None:
+                #    for val_step, (src_batch, trg_batch) in enumerate(zip(src_val_data, trg_val_data)):
+                #        loss, loss_info = self.calc_loss(src_batch, trg_batch)
+                #        self.loss_logger.store(prefix="val", loss=loss.data.cpu().item(), **loss_info)
+                
             if callbacks is not None:
                 epoch_log = dict(**self.loss_logger.get_info())
                 if src_metrics is not None:
@@ -103,15 +104,21 @@ class Trainer:
             if lr_scheduler:
                 lr_scheduler.step(opt, self.epoch, n_epochs)
 
-    def score(self, data, metrics):
+    def score(self, data, metrics, steps_num):
         for metric in metrics:
             metric.reset()
-
+            
+        # not to iterate infinitely 
+        cur_step = 0
+        
         data.reload_iterator()
         for images, true_classes in data:
             pred_classes = self.model.predict(images)
             for metric in metrics:
                 metric(true_classes, pred_classes)
+            cur_step += 1
+            if cur_step == steps_num:
+                break
         data.reload_iterator()
         return {metric.name: metric.score for metric in metrics}
 

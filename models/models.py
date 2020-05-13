@@ -19,7 +19,7 @@ class DANNModel(BaseModel):
         self.features, self.pooling, self.class_classifier, \
             domain_input_len, self.classifier_before_domain_cnt = backbone_models.get_backbone_model()
         
-        if dann_config.NEED_ADAPTATION_BLOCK:
+        if dann_config.ALEXNET_NEED_ADAPTATION_BLOCK:
             self.adaptation_block = nn.Sequential(
                 nn.ReLU(),
                 nn.Linear(domain_input_len, 2048),
@@ -27,7 +27,17 @@ class DANNModel(BaseModel):
             )
             domain_input_len = 2048
             classifier_start_output_len = self.class_classifier[self.classifier_before_domain_cnt][-1].out_features
-            self.class_classifier[self.classifier_before_domain_cnt][-1] = nn.Linear(2048, classifier_start_output_len)
+            if dann_config.ALEXNET_USE_DROPOUT_IN_CLASS_HEAD_AFTER_ADAPTATION_BLOCK:
+                self.class_classifier[self.classifier_before_domain_cnt][-1] = nn.Sequential(
+                    nn.Linear(2048, 2048),
+                    nn.ReLU(),
+                    nn.Dropout(0.5),
+                    nn.Linear(2048, 1024),
+                    nn.ReLU(),
+                    nn.Dropout(0.5),
+                    nn.Linear(1024, classifier_start_output_len))
+            else:
+                self.class_classifier[self.classifier_before_domain_cnt][-1] = nn.Linear(2048, classifier_start_output_len)
 
         self.domain_classifier = domain_heads.get_domain_head(domain_input_len)
 
@@ -48,7 +58,7 @@ class DANNModel(BaseModel):
             output_classifier = self.class_classifier[i](output_classifier)
             classifier_layers_outputs.append(output_classifier)
 
-        if dann_config.NEED_ADAPTATION_BLOCK:
+        if dann_config.ALEXNET_NEED_ADAPTATION_BLOCK:
             output_classifier = self.adaptation_block(output_classifier)
 
         reversed_features = blocks.GradientReversalLayer.apply(output_classifier, rev_grad_alpha)

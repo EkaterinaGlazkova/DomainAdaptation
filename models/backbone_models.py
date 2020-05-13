@@ -97,7 +97,13 @@ def get_resnet50():
                 param.requires_grad = False
 
     pooling = model.avgpool
-    classifier = nn.Sequential(nn.Linear(2048, dann_config.CLASSES_CNT))
+    if dann_config.RESNET50_USE_DROPOUT_IN_CLASS_HEAD:
+        classifier = nn.Sequential(nn.Linear(2048, 1024),
+                               nn.ReLU(),
+                               nn.Dropout(0.5), 
+                               nn.Linear(1024, dann_config.CLASSES_CNT))
+    else:
+        classifier = nn.Sequential(nn.Linear(2048, dann_config.CLASSES_CNT))
     classifier_layer_ids = [0]
     pooling_ftrs = 2048
     pooling_output_side = 1
